@@ -32,9 +32,15 @@ Flask + vanilla JS note-taking app.
   matches if you rename it.
 
 ## LLM / translation feature
-- LLM calls go through OpenRouter using the OpenAI Python SDK pointed at
-  `https://openrouter.ai/api/v1` (see `src/services/translation_service.py`
-  and the standalone `translator.py` exercise script).
+- LLM calls (translation, auto-title/tags) go through Google's Gemini API
+  using the OpenAI Python SDK pointed at Gemini's OpenAI-compatible
+  endpoint (`https://generativelanguage.googleapis.com/v1beta/openai/`,
+  `GEMINI_API_KEY` / `GEMINI_MODEL`) - see `src/services/llm_client.py`,
+  shared by `translation_service.py` and `note_ai_service.py`.
+  (Originally used OpenRouter; switched because its free-tier models
+  responded too slowly. The standalone `translator.py` exercise script
+  still uses OpenRouter on purpose - it's a separate learning artifact,
+  not part of the live app.)
 - System prompts for LLM features live as markdown files under `prompts/`,
   not inline in Python strings, so they're easy to review/tweak.
 - Ask the LLM for JSON output explicitly in the prompt, and defensively

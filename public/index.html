@@ -317,11 +317,21 @@
         .btn-save {
             background: #28a745;
             color: white;
+            /* Fixed width sized for the longer "Saving..." label, so the
+               label swap while saving doesn't reflow the row. */
+            min-width: 110px;
+            white-space: nowrap;
         }
 
         .btn-save:hover {
             background: #218838;
             transform: translateY(-1px);
+        }
+
+        .btn-save:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
         }
 
         .btn-delete {
@@ -1316,6 +1326,12 @@
                     return;
                 }
 
+                const saveBtn = document.getElementById('saveBtn');
+                if (!isAutoSave) {
+                    saveBtn.disabled = true;
+                    saveBtn.textContent = '💾 Saving...';
+                }
+
                 try {
                     const noteData = {
                         // Send the title as-is, even blank - a blank title on a
@@ -1376,6 +1392,11 @@
                     }
                 } catch (error) {
                     this.showMessage(`Error saving note: ${error.message}`, 'error');
+                } finally {
+                    if (!isAutoSave) {
+                        saveBtn.disabled = false;
+                        saveBtn.textContent = '💾 Save';
+                    }
                 }
             }
 
