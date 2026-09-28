@@ -14,3 +14,6 @@ Werkzeug==3.1.3
 # Translation feature (OpenRouter LLM API)
 openai==1.106.1
 python-dotenv==1.0.1
+
+# Postgres driver (external DB, e.g. Neon) for stateless/serverless deployment
+psycopg2-binary==2.9.9
