@@ -59,6 +59,7 @@
             box-shadow: 0 10px 30px rgba(0,0,0,0.1);
             backdrop-filter: blur(10px);
             height: fit-content;
+            min-width: 0; /* allow flex children to shrink instead of overflowing */
         }
 
         .note-editor {
@@ -69,6 +70,7 @@
             backdrop-filter: blur(10px);
             display: flex;
             flex-direction: column;
+            min-width: 0; /* prevent long unbroken text from forcing this wider */
         }
 
         .search-box {
@@ -135,6 +137,8 @@
             font-size: 16px;
             margin-bottom: 5px;
             color: #333;
+            overflow-wrap: anywhere;
+            word-break: break-word;
         }
 
         .note-preview {
@@ -145,6 +149,8 @@
             -webkit-line-clamp: 2;
             -webkit-box-orient: vertical;
             overflow: hidden;
+            overflow-wrap: anywhere; /* handle very long unbroken text (e.g. URLs) */
+            word-break: break-word;
         }
 
         .note-date {
@@ -157,12 +163,18 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
             margin-bottom: 20px;
         }
 
         .editor-title {
             font-size: 1.5rem;
             color: #333;
+            flex: 1 1 250px;
+            min-width: 150px; /* shrink, but not down to a 1-char-wide column */
+            overflow-wrap: anywhere;
+            word-break: break-word;
         }
 
         .editor-actions {
@@ -292,6 +304,8 @@
             resize: vertical;
             transition: border-color 0.3s ease;
             line-height: 1.6;
+            overflow-wrap: anywhere; /* break long unbroken words instead of overflowing */
+            word-break: break-word;
         }
 
         .form-textarea:focus {
