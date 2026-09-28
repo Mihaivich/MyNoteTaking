@@ -449,10 +449,11 @@
                 this.currentNote = note;
                 this.showEditor();
                 this.renderNotesList(); // Re-render to update active state
-                
+
                 document.getElementById('noteTitle').value = note.title || '';
                 document.getElementById('noteContent').value = note.content || '';
                 document.getElementById('editorTitle').textContent = note.title || 'Untitled Note';
+                this.updateDeleteButtonVisibility();
             }
 
             createNewNote() {
@@ -469,7 +470,8 @@
                 document.getElementById('noteContent').value = '';
                 document.getElementById('editorTitle').textContent = 'New Note';
                 document.getElementById('noteTitle').focus();
-                
+                this.updateDeleteButtonVisibility();
+
                 // Remove active state from all notes
                 document.querySelectorAll('.note-item').forEach(item => {
                     item.classList.remove('active');
@@ -480,6 +482,15 @@
                 document.getElementById('emptyState').style.display = 'none';
                 document.getElementById('editorForm').style.display = 'block';
                 document.getElementById('editorActions').style.display = 'flex';
+            }
+
+            // The delete button should only be visible for notes that have
+            // already been saved (i.e. have an id). A new, unsaved note has
+            // nothing to delete yet.
+            updateDeleteButtonVisibility() {
+                const deleteBtn = document.getElementById('deleteBtn');
+                const hasSavedNote = !!(this.currentNote && this.currentNote.id);
+                deleteBtn.style.display = hasSavedNote ? 'inline-block' : 'none';
             }
 
             hideEditor() {
@@ -541,7 +552,8 @@
                     
                     this.renderNotesList();
                     document.getElementById('editorTitle').textContent = savedNote.title;
-                    
+                    this.updateDeleteButtonVisibility();
+
                     if (!isAutoSave) {
                         this.showMessage('Note saved successfully!', 'success');
                     }
