@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify, request
 from src.models.note import Note, db
+from src.services.translation_service import TranslationError, translate_note
 
 note_bp = Blueprint('note', __name__)
 
@@ -60,6 +61,24 @@ def delete_note(note_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
+@note_bp.route('/notes/<int:note_id>/translate', methods=['POST'])
+def translate_note_route(note_id):
+    """Translate a note's title/content into a target language via an LLM.
+
+    Body (optional): {"target_language": "Chinese (Simplified)"}
+    Response (JSON): {translated_title, translated_content, target_language}
+    This does not modify the stored note - it's a read-only translation.
+    """
+    note = Note.query.get_or_404(note_id)
+    data = request.json if request.is_json else {}
+    target_language = (data or {}).get('target_language')
+
+    try:
+        result = translate_note(note.title, note.content, target_language)
+        return jsonify(result)
+    except TranslationError as e:
+        return jsonify({'error': str(e)}), 502
 
 @note_bp.route('/notes/search', methods=['GET'])
 def search_notes():
