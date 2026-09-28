@@ -13,7 +13,12 @@ from src.routes.user import user_bp
 from src.routes.note import note_bp
 from src.models.note import Note
 
-app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'))
+ROOT_DIR = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+
+# Static frontend lives in the top-level public/ dir (Vercel serves this
+# directory from its CDN directly; Flask also serves it for local dev via
+# the catch-all route below).
+app = Flask(__name__, static_folder=os.path.join(ROOT_DIR, 'public'))
 app.config['SECRET_KEY'] = 'asdf#FGSgvasgf$5$WGT'
 
 # Enable CORS for all routes
@@ -22,13 +27,23 @@ CORS(app)
 # register blueprints
 app.register_blueprint(user_bp, url_prefix='/api')
 app.register_blueprint(note_bp, url_prefix='/api')
-# configure database to use repository-root `database/app.db`
-ROOT_DIR = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
-DB_PATH = os.path.join(ROOT_DIR, 'database', 'app.db')
-# ensure database directory exists
-os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
-app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{DB_PATH}"
+# Database: use an external Postgres database (e.g. Neon) when DATABASE_URL
+# is set - required on Vercel, whose serverless functions have an ephemeral
+# filesystem and can't rely on a local SQLite file. Falls back to a local
+# SQLite file for convenience when no DATABASE_URL is configured.
+DATABASE_URL = os.environ.get('DATABASE_URL')
+if DATABASE_URL:
+    # SQLAlchemy/psycopg2 expect the "postgresql://" scheme; some providers
+    # (and Heroku-style env vars) still hand out the older "postgres://" one.
+    if DATABASE_URL.startswith('postgres://'):
+        DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+    app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
+else:
+    DB_PATH = os.path.join(ROOT_DIR, 'database', 'app.db')
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+    app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{DB_PATH}"
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 with app.app_context():
