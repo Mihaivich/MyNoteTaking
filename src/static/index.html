@@ -148,13 +148,14 @@
         .notes-list {
             max-height: 500px;
             overflow-y: auto;
+            overflow-x: hidden; /* never show a horizontal scrollbar here */
         }
 
         .note-item {
             padding: 15px;
             border: 2px solid transparent;
             border-radius: 10px;
-            margin-bottom: 10px;
+            margin: 0 5px 10px 0; /* right margin gives room for the hover shift below */
             cursor: pointer;
             transition: all 0.3s ease;
             background: #f8f9fa;
