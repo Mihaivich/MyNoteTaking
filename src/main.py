@@ -8,6 +8,7 @@ load_dotenv()
 
 from flask import Flask, send_from_directory
 from flask_cors import CORS
+from sqlalchemy import inspect, text
 from src.models.user import db
 from src.routes.user import user_bp
 from src.routes.note import note_bp
@@ -46,8 +47,33 @@ else:
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
+
+
+def _ensure_schema():
+    """db.create_all() only creates tables that don't exist yet - it never
+    alters an existing table, so adding a new model column (e.g. Note.tags)
+    does nothing for a database that already has a `note` table. There's no
+    migration framework in this small app, so patch that gap here: add any
+    columns the model declares but the table is still missing, using each
+    column's actual SQLAlchemy type so this keeps working for whatever gets
+    added next, not just today's `tags` column.
+    """
+    inspector = inspect(db.engine)
+    if 'note' not in inspector.get_table_names():
+        return  # create_all() will make the whole table, columns included
+
+    existing_columns = {col['name'] for col in inspector.get_columns('note')}
+    with db.engine.begin() as conn:
+        for column in Note.__table__.columns:
+            if column.name in existing_columns:
+                continue
+            column_type = column.type.compile(dialect=db.engine.dialect)
+            conn.execute(text(f'ALTER TABLE note ADD COLUMN "{column.name}" {column_type}'))
+
+
 with app.app_context():
     db.create_all()
+    _ensure_schema()
 
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')

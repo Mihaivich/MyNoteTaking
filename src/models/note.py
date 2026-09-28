@@ -6,6 +6,9 @@ class Note(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(200), nullable=False)
     content = db.Column(db.Text, nullable=False)
+    # Nullable so this new column doesn't break rows that existed in the
+    # database before it was added (see _ensure_schema in src/main.py).
+    tags = db.Column(db.JSON, nullable=True, default=list)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     attachments = db.relationship(
@@ -21,6 +24,7 @@ class Note(db.Model):
             'id': self.id,
             'title': self.title,
             'content': self.content,
+            'tags': self.tags or [],
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
             'attachments': [a.to_dict() for a in self.attachments]

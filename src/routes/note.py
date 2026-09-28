@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, request
 from src.models.note import Note, Attachment, db
 from src.services.translation_service import TranslationError, translate_note
+from src.services.note_ai_service import NoteAIError, generate_title_and_tags
 from src.services import storage_service
 from src.services.storage_service import StorageError
 
@@ -22,16 +23,40 @@ def get_notes():
 
 @note_bp.route('/notes', methods=['POST'])
 def create_note():
-    """Create a new note"""
+    """Create a new note.
+
+    If title is blank but there's content to work with, ask an LLM to
+    suggest a title and a few tags rather than leaving it "Untitled" - see
+    src/services/note_ai_service.py. Best-effort: falls back to "Untitled"
+    with no tags if that fails (missing key, model error, etc).
+    """
     try:
         data = request.json
         if not data or 'title' not in data or 'content' not in data:
             return jsonify({'error': 'Title and content are required'}), 400
-        
-        note = Note(title=data['title'], content=data['content'])
+
+        title = (data['title'] or '').strip()
+        content = data['content']
+        tags = data.get('tags') or []
+        ai_generated_title = False
+
+        if not title and content.strip():
+            try:
+                suggestion = generate_title_and_tags(content)
+                title = suggestion['title']
+                if not tags:
+                    tags = suggestion['tags']
+                ai_generated_title = True
+            except NoteAIError:
+                pass  # fall through to the plain "Untitled" default below
+
+        note = Note(title=title or 'Untitled', content=content, tags=tags)
         db.session.add(note)
         db.session.commit()
-        return jsonify(note.to_dict()), 201
+
+        result = note.to_dict()
+        result['ai_generated_title'] = ai_generated_title
+        return jsonify(result), 201
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
@@ -52,8 +77,14 @@ def update_note(note_id):
         if not data:
             return jsonify({'error': 'No data provided'}), 400
         
-        note.title = data.get('title', note.title)
+        # Fall back to the existing title if an empty one is sent (e.g. the
+        # frontend now sends the raw, possibly-blank title so a *new* note
+        # can trigger AI auto-titling - an update shouldn't blank out an
+        # already-saved note's title the same way).
+        note.title = data.get('title') or note.title
         note.content = data.get('content', note.content)
+        if 'tags' in data:
+            note.tags = data.get('tags') or []
         db.session.commit()
         return jsonify(note.to_dict())
     except Exception as e:
