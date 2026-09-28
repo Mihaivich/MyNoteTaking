@@ -262,6 +262,91 @@
             transform: none;
         }
 
+        .btn-attach {
+            background: #20c997;
+            color: white;
+        }
+
+        .btn-attach:hover {
+            background: #199d76;
+            transform: translateY(-1px);
+        }
+
+        .btn-attach:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .attachments-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .attachment-item {
+            position: relative;
+            width: 90px;
+        }
+
+        .attachment-item .attachment-thumb {
+            width: 90px;
+            height: 90px;
+            object-fit: cover;
+            border-radius: 8px;
+            border: 2px solid #e1e5e9;
+            display: block;
+            background: #f8f9fa;
+        }
+
+        .attachment-item .attachment-file-icon {
+            width: 90px;
+            height: 90px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 2px solid #e1e5e9;
+            font-size: 32px;
+        }
+
+        .attachment-item a {
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .attachment-item .attachment-filename {
+            font-size: 11px;
+            text-align: center;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            margin-top: 4px;
+            color: #555;
+        }
+
+        .attachment-remove {
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #dc3545;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 12px;
+            line-height: 1;
+            padding: 0;
+        }
+
+        .attachment-remove:hover {
+            background: #c82333;
+        }
+
         .translate-language-select {
             padding: 8px 10px;
             border-radius: 8px;
@@ -481,6 +566,13 @@
                         <textarea class="form-textarea" id="noteContent" placeholder="Start writing your note..."></textarea>
                     </div>
 
+                    <div class="form-group">
+                        <label class="form-label">Attachments</label>
+                        <div class="attachments-list" id="attachmentsList"></div>
+                        <input type="file" id="attachmentInput" accept="image/*,.pdf,.txt,.doc,.docx" style="display: none;">
+                        <button class="btn btn-attach" id="attachBtn">📎 Add attachment</button>
+                    </div>
+
                     <div class="translation-panel" id="translationPanel" style="display: none;">
                         <button class="close-translation" id="closeTranslationBtn">✕ Close</button>
                         <h4 id="translationHeading">Translation</h4>
@@ -561,6 +653,8 @@
                 document.getElementById('deleteBtn').addEventListener('click', () => this.deleteNote());
                 document.getElementById('translateBtn').addEventListener('click', () => this.translateNote());
                 document.getElementById('closeTranslationBtn').addEventListener('click', () => this.hideTranslation());
+                document.getElementById('attachBtn').addEventListener('click', () => this.handleAttachClick());
+                document.getElementById('attachmentInput').addEventListener('change', (e) => this.uploadAttachment(e.target.files[0]));
                 document.getElementById('searchBox').addEventListener('input', (e) => this.searchNotes(e.target.value));
                 
                 // Auto-save on content change (debounced)
@@ -627,6 +721,7 @@
                 document.getElementById('editorTitle').textContent = note.title || 'Untitled Note';
                 this.updateDeleteButtonVisibility();
                 this.hideTranslation();
+                this.renderAttachments(note.attachments || []);
             }
 
             createNewNote() {
@@ -635,9 +730,10 @@
                     title: '',
                     content: '',
                     created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString()
+                    updated_at: new Date().toISOString(),
+                    attachments: []
                 };
-                
+
                 this.showEditor();
                 document.getElementById('noteTitle').value = '';
                 document.getElementById('noteContent').value = '';
@@ -645,6 +741,7 @@
                 document.getElementById('noteTitle').focus();
                 this.updateDeleteButtonVisibility();
                 this.hideTranslation();
+                this.renderAttachments([]);
 
                 // Remove active state from all notes
                 document.querySelectorAll('.note-item').forEach(item => {
@@ -718,6 +815,92 @@
                 document.getElementById('editorTitle').textContent = 'Select a note to edit';
                 this.currentNote = null;
                 this.hideTranslation();
+                this.renderAttachments([]);
+            }
+
+            handleAttachClick() {
+                if (!this.currentNote || !this.currentNote.id) {
+                    this.showMessage('Please save the note before adding attachments', 'error');
+                    return;
+                }
+                document.getElementById('attachmentInput').click();
+            }
+
+            async uploadAttachment(file) {
+                if (!file || !this.currentNote || !this.currentNote.id) return;
+
+                const attachBtn = document.getElementById('attachBtn');
+                const attachmentInput = document.getElementById('attachmentInput');
+                attachBtn.disabled = true;
+                attachBtn.textContent = '📎 Uploading...';
+
+                try {
+                    const formData = new FormData();
+                    formData.append('file', file);
+
+                    const response = await fetch(`/api/notes/${this.currentNote.id}/attachments`, {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const result = await response.json();
+                    if (!response.ok) {
+                        throw new Error(result.error || 'Failed to upload attachment');
+                    }
+
+                    this.currentNote.attachments = this.currentNote.attachments || [];
+                    this.currentNote.attachments.push(result);
+                    this.renderAttachments(this.currentNote.attachments);
+
+                    // Keep this.notes in sync so re-selecting the note still shows it
+                    const noteInList = this.notes.find(n => n.id === this.currentNote.id);
+                    if (noteInList) noteInList.attachments = this.currentNote.attachments;
+                } catch (error) {
+                    this.showMessage(`Error uploading attachment: ${error.message}`, 'error');
+                } finally {
+                    attachBtn.disabled = false;
+                    attachBtn.textContent = '📎 Add attachment';
+                    attachmentInput.value = ''; // allow re-selecting the same file later
+                }
+            }
+
+            async deleteAttachmentItem(attachmentId) {
+                if (!confirm('Remove this attachment?')) return;
+
+                try {
+                    const response = await fetch(`/api/attachments/${attachmentId}`, { method: 'DELETE' });
+                    if (!response.ok) {
+                        const result = await response.json().catch(() => ({}));
+                        throw new Error(result.error || 'Failed to remove attachment');
+                    }
+
+                    this.currentNote.attachments = (this.currentNote.attachments || [])
+                        .filter(a => a.id !== attachmentId);
+                    this.renderAttachments(this.currentNote.attachments);
+
+                    const noteInList = this.notes.find(n => n.id === this.currentNote.id);
+                    if (noteInList) noteInList.attachments = this.currentNote.attachments;
+                } catch (error) {
+                    this.showMessage(`Error removing attachment: ${error.message}`, 'error');
+                }
+            }
+
+            renderAttachments(attachments) {
+                const list = document.getElementById('attachmentsList');
+                const isImage = (contentType) => contentType && contentType.startsWith('image/');
+
+                list.innerHTML = (attachments || []).map(a => `
+                    <div class="attachment-item">
+                        <button class="attachment-remove" title="Remove"
+                                onclick="noteTaker.deleteAttachmentItem(${a.id})">✕</button>
+                        <a href="${a.url}" target="_blank" rel="noopener noreferrer">
+                            ${isImage(a.content_type)
+                                ? `<img class="attachment-thumb" src="${a.url}" alt="${this.escapeHtml(a.filename)}">`
+                                : `<div class="attachment-file-icon">📄</div>`}
+                        </a>
+                        <div class="attachment-filename" title="${this.escapeHtml(a.filename)}">${this.escapeHtml(a.filename)}</div>
+                    </div>
+                `).join('');
             }
 
             async saveNote(isAutoSave = false) {
@@ -772,6 +955,7 @@
                     this.renderNotesList();
                     document.getElementById('editorTitle').textContent = savedNote.title;
                     this.updateDeleteButtonVisibility();
+                    this.renderAttachments(savedNote.attachments || []);
 
                     if (!isAutoSave) {
                         this.showMessage('Note saved successfully!', 'success');
