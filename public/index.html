@@ -199,10 +199,19 @@
         }
 
         .editor-header {
+            /* Title and actions always sit on their own row, each full-width.
+               (Previously title+actions shared one flex-wrap row, so whether
+               they fit side-by-side depended on the actions row's current
+               content width - e.g. a new note has no Delete button and fits,
+               but a saved note's extra Delete button doesn't, so the same
+               header would wrap differently depending on note state. Same
+               root cause made the Translate button's label growing to
+               "Translating..." push the row over the edge mid-click.
+               Stacking unconditionally removes that content-width-dependent
+               flakiness entirely.) */
             display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
+            flex-direction: column;
+            align-items: stretch;
             gap: 10px;
             margin-bottom: 20px;
         }
@@ -210,14 +219,13 @@
         .editor-title {
             font-size: 1.5rem;
             color: #333;
-            flex: 1 1 250px;
-            min-width: 150px; /* shrink, but not down to a 1-char-wide column */
             overflow-wrap: anywhere;
             word-break: break-word;
         }
 
         .editor-actions {
             display: flex;
+            flex-wrap: wrap;
             gap: 10px;
         }
 
@@ -249,6 +257,10 @@
         .btn-translate {
             background: #6c5ce7;
             color: white;
+            /* Fixed width sized for the longer "Translating..." label, so
+               swapping the label doesn't reflow the whole editor-actions row. */
+            min-width: 132px;
+            white-space: nowrap;
         }
 
         .btn-translate:hover {
@@ -265,6 +277,10 @@
         .btn-attach {
             background: #20c997;
             color: white;
+            /* Fixed width sized for the longer "Add attachment" label, so
+               swapping to "Uploading..." doesn't shrink/reflow the row. */
+            min-width: 150px;
+            white-space: nowrap;
         }
 
         .btn-attach:hover {
@@ -764,11 +780,26 @@
                 deleteBtn.style.display = hasSavedNote ? 'inline-block' : 'none';
             }
 
-            async translateNote() {
+            // Notes need an id (i.e. must exist in the DB) before a translation
+            // or an attachment can be linked to them. Rather than making the
+            // user click Save first, silently save-as-you-go: auto-save a new
+            // note here, and only bother the user if there's truly nothing to
+            // save yet (blank title and content).
+            async ensureNoteSaved(actionLabel) {
+                if (!this.currentNote) return false;
+                if (this.currentNote.id) return true;
+
+                await this.saveNote(true);
+
                 if (!this.currentNote || !this.currentNote.id) {
-                    this.showMessage('Please save the note before translating it', 'error');
-                    return;
+                    this.showMessage(`Please enter a title or content before ${actionLabel}`, 'error');
+                    return false;
                 }
+                return true;
+            }
+
+            async translateNote() {
+                if (!(await this.ensureNoteSaved('translating'))) return;
 
                 const targetLanguage = document.getElementById('translateLanguage').value;
                 const translateBtn = document.getElementById('translateBtn');
@@ -788,6 +819,7 @@
                     }
 
                     this.showTranslation(result);
+                    this.hideMessage(); // clear any stale error (e.g. from an earlier blank-note attempt)
                 } catch (error) {
                     this.showMessage(`Error translating note: ${error.message}`, 'error');
                 } finally {
@@ -818,11 +850,8 @@
                 this.renderAttachments([]);
             }
 
-            handleAttachClick() {
-                if (!this.currentNote || !this.currentNote.id) {
-                    this.showMessage('Please save the note before adding attachments', 'error');
-                    return;
-                }
+            async handleAttachClick() {
+                if (!(await this.ensureNoteSaved('adding an attachment'))) return;
                 document.getElementById('attachmentInput').click();
             }
 
@@ -851,6 +880,7 @@
                     this.currentNote.attachments = this.currentNote.attachments || [];
                     this.currentNote.attachments.push(result);
                     this.renderAttachments(this.currentNote.attachments);
+                    this.hideMessage(); // clear any stale error (e.g. from an earlier blank-note attempt)
 
                     // Keep this.notes in sync so re-selecting the note still shows it
                     const noteInList = this.notes.find(n => n.id === this.currentNote.id);
