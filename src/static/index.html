@@ -195,6 +195,62 @@
             color: white;
         }
 
+        .btn-translate {
+            background: #6c5ce7;
+            color: white;
+        }
+
+        .btn-translate:hover {
+            background: #5a4bd1;
+            transform: translateY(-1px);
+        }
+
+        .btn-translate:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .translate-language-select {
+            padding: 8px 10px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            font-size: 14px;
+        }
+
+        .translation-panel {
+            margin-top: 16px;
+            padding: 16px;
+            border-radius: 10px;
+            background: #f4f2ff;
+            border: 1px solid #d8d0ff;
+        }
+
+        .translation-panel h4 {
+            margin-bottom: 8px;
+            color: #4b3fa0;
+        }
+
+        .translation-panel .translated-title {
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .translation-panel .translated-content {
+            white-space: pre-wrap;
+            line-height: 1.5;
+        }
+
+        .translation-panel .close-translation {
+            float: right;
+            cursor: pointer;
+            color: #6c5ce7;
+            font-weight: 600;
+            background: none;
+            border: none;
+            font-size: 14px;
+        }
+
         .btn-delete:hover {
             background: #c82333;
             transform: translateY(-1px);
@@ -344,6 +400,15 @@
                 <div class="editor-header">
                     <h2 class="editor-title" id="editorTitle">Select a note to edit</h2>
                     <div class="editor-actions" id="editorActions" style="display: none;">
+                        <select class="translate-language-select" id="translateLanguage">
+                            <option value="Chinese (Simplified)" selected>中文（简体）</option>
+                            <option value="Chinese (Traditional)">中文（繁體）</option>
+                            <option value="English">English</option>
+                            <option value="Spanish">Español</option>
+                            <option value="Japanese">日本語</option>
+                            <option value="French">Français</option>
+                        </select>
+                        <button class="btn btn-translate" id="translateBtn">🌐 Translate</button>
                         <button class="btn btn-save" id="saveBtn">💾 Save</button>
                         <button class="btn btn-delete" id="deleteBtn">🗑️ Delete</button>
                     </div>
@@ -360,6 +425,13 @@
                     <div class="form-group">
                         <label class="form-label" for="noteContent">Content</label>
                         <textarea class="form-textarea" id="noteContent" placeholder="Start writing your note..."></textarea>
+                    </div>
+
+                    <div class="translation-panel" id="translationPanel" style="display: none;">
+                        <button class="close-translation" id="closeTranslationBtn">✕ Close</button>
+                        <h4 id="translationHeading">Translation</h4>
+                        <div class="translated-title" id="translatedTitle"></div>
+                        <div class="translated-content" id="translatedContent"></div>
                     </div>
                 </div>
 
@@ -389,6 +461,8 @@
                 document.getElementById('newNoteBtn').addEventListener('click', () => this.createNewNote());
                 document.getElementById('saveBtn').addEventListener('click', () => this.saveNote());
                 document.getElementById('deleteBtn').addEventListener('click', () => this.deleteNote());
+                document.getElementById('translateBtn').addEventListener('click', () => this.translateNote());
+                document.getElementById('closeTranslationBtn').addEventListener('click', () => this.hideTranslation());
                 document.getElementById('searchBox').addEventListener('input', (e) => this.searchNotes(e.target.value));
                 
                 // Auto-save on content change (debounced)
@@ -454,6 +528,7 @@
                 document.getElementById('noteContent').value = note.content || '';
                 document.getElementById('editorTitle').textContent = note.title || 'Untitled Note';
                 this.updateDeleteButtonVisibility();
+                this.hideTranslation();
             }
 
             createNewNote() {
@@ -471,6 +546,7 @@
                 document.getElementById('editorTitle').textContent = 'New Note';
                 document.getElementById('noteTitle').focus();
                 this.updateDeleteButtonVisibility();
+                this.hideTranslation();
 
                 // Remove active state from all notes
                 document.querySelectorAll('.note-item').forEach(item => {
@@ -493,12 +569,57 @@
                 deleteBtn.style.display = hasSavedNote ? 'inline-block' : 'none';
             }
 
+            async translateNote() {
+                if (!this.currentNote || !this.currentNote.id) {
+                    this.showMessage('Please save the note before translating it', 'error');
+                    return;
+                }
+
+                const targetLanguage = document.getElementById('translateLanguage').value;
+                const translateBtn = document.getElementById('translateBtn');
+                translateBtn.disabled = true;
+                translateBtn.textContent = '🌐 Translating...';
+
+                try {
+                    const response = await fetch(`/api/notes/${this.currentNote.id}/translate`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ target_language: targetLanguage })
+                    });
+
+                    const result = await response.json();
+                    if (!response.ok) {
+                        throw new Error(result.error || 'Failed to translate note');
+                    }
+
+                    this.showTranslation(result);
+                } catch (error) {
+                    this.showMessage(`Error translating note: ${error.message}`, 'error');
+                } finally {
+                    translateBtn.disabled = false;
+                    translateBtn.textContent = '🌐 Translate';
+                }
+            }
+
+            showTranslation(result) {
+                document.getElementById('translationHeading').textContent =
+                    `Translation (${result.target_language})`;
+                document.getElementById('translatedTitle').textContent = result.translated_title;
+                document.getElementById('translatedContent').textContent = result.translated_content;
+                document.getElementById('translationPanel').style.display = 'block';
+            }
+
+            hideTranslation() {
+                document.getElementById('translationPanel').style.display = 'none';
+            }
+
             hideEditor() {
                 document.getElementById('emptyState').style.display = 'block';
                 document.getElementById('editorForm').style.display = 'none';
                 document.getElementById('editorActions').style.display = 'none';
                 document.getElementById('editorTitle').textContent = 'Select a note to edit';
                 this.currentNote = null;
+                this.hideTranslation();
             }
 
             async saveNote(isAutoSave = false) {
