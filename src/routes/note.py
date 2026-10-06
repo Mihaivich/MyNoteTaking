@@ -211,6 +211,16 @@ def search_notes():
     notes = Note.query.filter(
         (Note.title.contains(query)) | (Note.content.contains(query))
     ).order_by(Note.updated_at.desc()).all()
-    
+
     return jsonify([note.to_dict() for note in notes])
+
+@note_bp.route('/keepalive', methods=['GET'])
+def keepalive():
+    """Hit by a Vercel Cron Job (see vercel.json) so Supabase doesn't
+    auto-pause this project for inactivity."""
+    try:
+        storage_service.ping()
+        return jsonify({'status': 'ok'})
+    except StorageError as e:
+        return jsonify({'status': 'error', 'error': str(e)}), 502
 

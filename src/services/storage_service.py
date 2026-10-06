@@ -79,6 +79,22 @@ def upload_attachment(note_id: int, file_storage) -> dict:
     }
 
 
+def ping() -> None:
+    """Make a trivial Storage API call - used by a scheduled keepalive route
+    so the Supabase project doesn't get auto-paused for inactivity.
+    """
+    base_url, service_key = _require_config()
+    try:
+        response = requests.get(
+            f"{base_url}/storage/v1/bucket",
+            headers={'Authorization': f'Bearer {service_key}', 'apikey': service_key},
+            timeout=30,
+        )
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        raise StorageError(f"Keepalive ping failed: {exc}") from exc
+
+
 def delete_attachment(storage_key: str) -> None:
     base_url, service_key = _require_config()
     delete_url = f"{base_url}/storage/v1/object/{BUCKET}/{storage_key}"
